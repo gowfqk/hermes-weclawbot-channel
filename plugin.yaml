@@ -1,0 +1,20 @@
+name: weclawbot
+label: WeClawBot Bridge
+kind: platform
+version: 0.1.0
+description: Hermes Channel Adapter for WeClawBot-Bridge WS Remote Agent protocol
+author: Zhang Deshuai
+requires_env:
+  - name: WECLAWBOT_TOKEN
+    description: Bridge WS Agent token
+    prompt: Bridge WS Agent token
+    password: true
+optional_env:
+  - name: WECLAWBOT_BRIDGE_URL
+    description: Bridge WebSocket URL
+    prompt: Bridge WebSocket URL
+    password: false
+  - name: WECLAWBOT_AGENT_ID
+    description: WS Remote Agent ID
+    prompt: Bridge Agent ID
+    password: false
