@@ -2,6 +2,8 @@
 
 将 WeClawBot-Bridge 的微信消息接入 Hermes Gateway。
 
+> 依赖项目：[WeClawBot-Bridge](https://github.com/gowfqk/WeClawBot-Bridge)
+
 ## 架构
 
 ```text
