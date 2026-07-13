@@ -3,7 +3,6 @@ label: WeClawBot Bridge
 kind: platform
 version: 0.1.0
 description: Hermes Channel Adapter for WeClawBot-Bridge WS Remote Agent protocol
-author: Zhang Deshuai
 requires_env:
   - name: WECLAWBOT_TOKEN
     description: Bridge WS Agent token
