@@ -7,7 +7,7 @@
 ## 架构
 
 ```text
-微信 → WeClawBot-Bridge (Railway) → 本插件 (WebSocket) → Hermes Gateway
+微信 → WeClawBot-Bridge → 本插件 (WebSocket) → Hermes Gateway
 ```
 
 ## 安装
@@ -45,7 +45,7 @@ hermes plugins enable weclawbot
 ```bash
 cat > /root/.config/weclawbot-adapter.env <<'ENV'
 WECLAWBOT_TOKEN=*** Bridge Token ***
-WECLAWBOT_BRIDGE_URL=wss://railway.122048.xyz/ws/agent
+WECLAWBOT_BRIDGE_URL=wss://<your-bridge-url>/ws/agent
 WECLAWBOT_AGENT_ID=h
 ENV
 chmod 600 /root/.config/weclawbot-adapter.env
@@ -70,7 +70,7 @@ platforms:
     enabled: true
     extra:
       token: "*** Token ***"
-      bridge_url: "wss://railway.122048.xyz/ws/agent"
+      bridge_url: "wss://<your-bridge-url>/ws/agent"
       agent_id: "h"
 ```
 
