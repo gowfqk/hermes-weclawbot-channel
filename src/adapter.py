@@ -116,9 +116,15 @@ class WeClawBotAdapter(BasePlatformAdapter):
                     auth = self._decode(raw)
                     if auth.get("type") != "auth_ok":
                         reason = str(auth.get("reason") or "Bridge authentication failed")
-                        self._set_fatal_error("auth_failed", reason, retryable=False)
-                        logger.error("WeClawBot: Bridge authentication rejected: %s", reason)
-                        return
+                        logger.warning(
+                            "WeClawBot: Bridge authentication rejected: %s; retrying in %.0fs",
+                            reason, backoff,
+                        )
+                        # Don't treat auth failure as fatal — Bridge may be in a
+                        # transient state (stale connection not yet cleaned up
+                        # after restart). Retry with backoff so the adapter
+                        # recovers without manual intervention.
+                        raise ConnectionError(f"Bridge auth rejected: {reason}")
                     self._mark_connected()
                     backoff = RECONNECT_INITIAL_SECONDS
                     logger.info("WeClawBot: authenticated to Bridge as agent %s", self.agent_id)
