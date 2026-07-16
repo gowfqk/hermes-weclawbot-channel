@@ -29,6 +29,48 @@ RECONNECT_INITIAL_SECONDS = 3.0
 RECONNECT_MAX_SECONDS = 60.0
 
 
+# ------------------------------------------------------------------
+# Bridge Protocol Message Builder
+# ------------------------------------------------------------------
+#
+# Inspired by AgentScope Runtime's ResponseBuilder → MessageBuilder →
+# ContentBuilder pattern.  Encapsulates Bridge ws-remote wire format
+# so adapter logic never touches raw dicts directly.
+#
+
+class BridgeMessageBuilder:
+    """Fluent builder for Bridge ws-remote protocol messages."""
+
+    @staticmethod
+    def auth(
+        token: str,
+        agent_id: str,
+        name: str = "",
+        command: str = "",
+        description: str = "",
+    ) -> dict[str, Any]:
+        return {
+            "type": "auth",
+            "token": token,
+            "agentId": agent_id,
+            "name": name,
+            "command": command,
+            "description": description,
+        }
+
+    @staticmethod
+    def chat_reply(request_id: str, text: str) -> dict[str, Any]:
+        return {"type": "chat", "id": request_id, "text": text}
+
+    @staticmethod
+    def error(request_id: str, reason: str) -> dict[str, Any]:
+        return {"type": "error", "id": request_id, "reason": reason}
+
+    @staticmethod
+    def pong() -> dict[str, Any]:
+        return {"type": "pong"}
+
+
 class WeClawBotAdapter(BasePlatformAdapter):
     """Persistent WS client that bridges WeClawBot messages into Hermes."""
 
@@ -104,14 +146,13 @@ class WeClawBotAdapter(BasePlatformAdapter):
                     max_size=256 * 1024,
                 ) as ws:
                     self._ws = ws
-                    await self._send_raw({
-                        "type": "auth",
-                        "token": self.token,
-                        "agentId": self.agent_id,
-                        "name": self.agent_name,
-                        "command": self.command,
-                        "description": self.description,
-                    })
+                    await self._send_raw(BridgeMessageBuilder.auth(
+                        token=self.token,
+                        agent_id=self.agent_id,
+                        name=self.agent_name,
+                        command=self.command,
+                        description=self.description,
+                    ))
                     raw = await asyncio.wait_for(ws.recv(), timeout=10)
                     auth = self._decode(raw)
                     if auth.get("type") != "auth_ok":
@@ -156,7 +197,7 @@ class WeClawBotAdapter(BasePlatformAdapter):
     async def _handle_inbound(self, message: dict[str, Any]) -> None:
         kind = message.get("type")
         if kind == "ping":
-            await self._send_raw({"type": "pong"})
+            await self._send_raw(BridgeMessageBuilder.pong())
             return
         if kind != "chat":
             if kind == "error":
@@ -197,7 +238,10 @@ class WeClawBotAdapter(BasePlatformAdapter):
         if not request_id:
             return SendResult(success=False, error="No Bridge request id for reply")
         try:
-            await self._send_raw({"type": "chat", "id": request_id, "text": content})
+            await self._send_raw(BridgeMessageBuilder.chat_reply(
+                request_id=request_id,
+                text=content,
+            ))
             return SendResult(success=True, message_id=request_id)
         except Exception as exc:
             return SendResult(success=False, error=f"Bridge send failed: {exc}")
@@ -211,7 +255,10 @@ class WeClawBotAdapter(BasePlatformAdapter):
 
     async def _reply_error(self, request_id: str, reason: str) -> None:
         try:
-            await self._send_raw({"type": "error", "id": request_id, "reason": reason})
+            await self._send_raw(BridgeMessageBuilder.error(
+                request_id=request_id,
+                reason=reason,
+            ))
         except Exception:
             logger.debug("WeClawBot: failed to return error to Bridge", exc_info=True)
 
