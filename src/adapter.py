@@ -27,6 +27,7 @@ DEFAULT_BRIDGE_URL = "wss://railway.122048.xyz/ws/agent"
 DEFAULT_AGENT_ID = "h"
 RECONNECT_INITIAL_SECONDS = 3.0
 RECONNECT_MAX_SECONDS = 60.0
+RECV_TIMEOUT_SECONDS = 60.0  # 死连接检测：60s 无数据就发 ping
 
 
 # ------------------------------------------------------------------
@@ -169,7 +170,20 @@ class WeClawBotAdapter(BasePlatformAdapter):
                     self._mark_connected()
                     backoff = RECONNECT_INITIAL_SECONDS
                     logger.info("WeClawBot: authenticated to Bridge as agent %s", self.agent_id)
-                    async for raw in ws:
+                    # 使用显式 recv + timeout 替代 async for，防止 TCP RST
+                    # 死连接（Docker 容器强杀）导致 recv 永久阻塞。
+                    while True:
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=RECV_TIMEOUT_SECONDS)
+                        except asyncio.TimeoutError:
+                            # 60s 无数据 → 发 ping 探测连接是否存活
+                            try:
+                                pong_waiter = await ws.ping()
+                                await asyncio.wait_for(pong_waiter, timeout=10)
+                            except Exception:
+                                logger.warning("WeClawBot: ping timeout — connection dead")
+                                raise
+                            continue
                         await self._handle_inbound(self._decode(raw))
             except asyncio.CancelledError:
                 break
