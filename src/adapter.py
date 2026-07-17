@@ -144,6 +144,7 @@ class WeClawBotAdapter(BasePlatformAdapter):
                     ping_interval=20,
                     ping_timeout=20,
                     close_timeout=10,
+                    open_timeout=15,   # WebSocket 握手超时，防止 Bridge 半死状态
                     max_size=256 * 1024,
                 ) as ws:
                     self._ws = ws
@@ -195,10 +196,13 @@ class WeClawBotAdapter(BasePlatformAdapter):
                     logger.warning("WeClawBot: WS connection error (%s); reconnecting in %.0fs", exc, backoff)
             finally:
                 self._ws = None
-                self._mark_disconnected()
+                # 不在重试循环内调用 _mark_disconnected() — 它会设 _running=False
+                # 从而杀死重试。只在真正退出循环时才报告断连。
             if self._running:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, RECONNECT_MAX_SECONDS)
+        # 循环退出 = 不再重试
+        self._mark_disconnected()
 
     @staticmethod
     def _decode(raw: Any) -> dict[str, Any]:
