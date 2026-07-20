@@ -230,8 +230,9 @@ class WeClawBotAdapter(BasePlatformAdapter):
         if not isinstance(text, str) or not text.strip():
             await self._reply_error(request_id, "Only non-empty text messages are supported")
             return
-        # Bridge business semantics are single-user. Do not use untrusted
-        # upstream user IDs for Hermes session partitioning.
+        # Bridge business semantics are single-user. The request ID is retained
+        # as the response route until this run finishes, so interim tool updates
+        # cannot consume the final reply address.
         chat_id = f"default:{self.agent_id}"
         self._request_ids[chat_id] = request_id
         source = self.build_source(
@@ -249,10 +250,17 @@ class WeClawBotAdapter(BasePlatformAdapter):
             raw_message={"bridge_request_id": request_id, "payload": payload},
             message_id=request_id,
         )
-        await self.handle_message(event)
+        try:
+            await self.handle_message(event)
+        finally:
+            self._request_ids.pop(chat_id, None)
 
     async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[dict] = None) -> SendResult:
-        request_id = reply_to or self._request_ids.pop(str(chat_id), None)
+        # Streaming/progress delivery invokes send() more than once for a single
+        # Hermes turn (especially after tool calls). All chunks must use the
+        # same Bridge request ID; consuming it on the first send caused later
+        # chunks/final replies to be silently lost as "unknown request ID".
+        request_id = reply_to or self._request_ids.get(str(chat_id))
         if not request_id:
             return SendResult(success=False, error="No Bridge request id for reply")
         try:
@@ -266,6 +274,21 @@ class WeClawBotAdapter(BasePlatformAdapter):
 
     async def send_typing(self, chat_id: str, metadata: Optional[dict] = None) -> None:
         # Bridge protocol intentionally has no typing frame.
+        return None
+
+    def render_message_event(self, event: Any, sink: Any) -> None:
+        """Disable interim stream chunks for the one-shot Bridge protocol.
+
+        A Bridge request accepts exactly one ``chat`` reply. Hermes normally
+        streams preambles, tool commentary and final text as separate sends;
+        the first such send would resolve Bridge's pending request and make the
+        later final answer appear as an unknown reply. The gateway's ordinary
+        post-run delivery still sends the completed response once.
+        """
+        return None
+
+    def format_tool_event(self, event: Any, **_kwargs: Any) -> None:
+        """Do not turn tool progress into a Bridge chat reply."""
         return None
 
     async def get_chat_info(self, chat_id: str) -> dict[str, Any]:
