@@ -23,7 +23,8 @@ async def assert_progress_and_final_replies_share_the_bridge_request_id():
     adapter._request_ids["default:h"] = "req-1"
 
     progress = await adapter.send("default:h", "正在调用工具…", metadata={"final": False})
-    final = await adapter.send("default:h", "最终答案", metadata={"final": True})
+    # Hermes' stream consumer marks a terminal send with notify=True.
+    final = await adapter.send("default:h", "最终答案", metadata={"notify": True})
 
     assert progress.success and final.success
     assert sent == [

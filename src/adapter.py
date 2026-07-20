@@ -261,7 +261,12 @@ class WeClawBotAdapter(BasePlatformAdapter):
         request_id = reply_to or self._request_ids.get(str(chat_id))
         if not request_id:
             return SendResult(success=False, error="No Bridge request id for reply")
-        is_final = bool((metadata or {}).get("final", False))
+        # Hermes marks terminal stream deliveries with ``notify``.  ``final``
+        # is retained for explicit callers; every other send is progress.
+        # Treating only ``final`` as terminal made the actual answer arrive as
+        # ``final: false``, so Bridge delivered it and then timed out waiting.
+        send_metadata = metadata or {}
+        is_final = bool(send_metadata.get("final") or send_metadata.get("notify"))
         try:
             await self._send_raw(BridgeMessageBuilder.chat_reply(
                 request_id=request_id,
