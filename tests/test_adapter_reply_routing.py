@@ -12,13 +12,7 @@ def make_adapter() -> WeClawBotAdapter:
     return adapter
 
 
-def test_tool_and_stream_events_are_suppressed_for_one_shot_bridge_replies():
-    adapter = make_adapter()
-    assert adapter.render_message_event(object(), object()) is None
-    assert adapter.format_tool_event(object()) is None
-
-
-async def assert_final_send_uses_the_original_bridge_request_id():
+async def assert_progress_and_final_replies_share_the_bridge_request_id():
     adapter = make_adapter()
     sent = []
 
@@ -27,12 +21,17 @@ async def assert_final_send_uses_the_original_bridge_request_id():
 
     adapter._send_raw = capture
     adapter._request_ids["default:h"] = "req-1"
-    result = await adapter.send("default:h", "最终答案")
 
-    assert result.success
-    assert sent == [{"type": "chat", "id": "req-1", "text": "最终答案"}]
+    progress = await adapter.send("default:h", "正在调用工具…", metadata={"final": False})
+    final = await adapter.send("default:h", "最终答案", metadata={"final": True})
+
+    assert progress.success and final.success
+    assert sent == [
+        {"type": "chat", "id": "req-1", "text": "正在调用工具…", "final": False},
+        {"type": "chat", "id": "req-1", "text": "最终答案", "final": True},
+    ]
     assert adapter._request_ids["default:h"] == "req-1"
 
 
-def test_final_send_uses_the_original_bridge_request_id():
-    asyncio.run(assert_final_send_uses_the_original_bridge_request_id())
+def test_progress_and_final_replies_share_the_bridge_request_id():
+    asyncio.run(assert_progress_and_final_replies_share_the_bridge_request_id())
