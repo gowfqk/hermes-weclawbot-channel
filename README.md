@@ -13,13 +13,29 @@
 ## 安装
 
 ```bash
-# 1. 克隆插件到 Hermes 插件目录
+# 1. 安装运行时依赖（与 Hermes 当前使用的 websockets 版本一致）
+cd hermes-weclawbot-channel
+uv pip install "websockets==15.0.1"
+
+# 2. 复制为 Hermes 平台插件
 mkdir -p ~/.hermes/plugins/weclawbot
 cp plugin.yaml ~/.hermes/plugins/weclawbot/
 cp src/adapter.py ~/.hermes/plugins/weclawbot/__init__.py
 
-# 2. 在 Hermes 中启用
+# 3. 在 Hermes 中启用
 hermes plugins enable weclawbot
+```
+
+开发/回归验证可直接在仓库运行：
+
+```bash
+uv run --with "websockets==15.0.1" --with "pytest>=8,<10" pytest
+```
+
+或安装为 Python 包（用于测试和工具，而非 Hermes 的插件发现路径）：
+
+```bash
+uv pip install -e ".[test]"
 ```
 
 ## 配置
@@ -39,6 +55,8 @@ hermes plugins enable weclawbot
 复制 Token。
 
 ### Hermes 端
+
+> **安全要求：必须显式配置 `WECLAWBOT_BRIDGE_URL` 或 `platforms.weclawbot.extra.bridge_url`，且必须是完整的 `ws://` 或 `wss://` 地址。** 插件没有公网默认地址；未配置或 URL 非法时不会发送 Token，也不会启动连接。
 
 **方式一：环境变量（推荐生产）**
 
@@ -88,7 +106,7 @@ journalctl -u hermes-gateway.service -f | grep -i weclawbot
 WeClawBot: authenticated to Bridge as agent h
 ```
 
-微信发消息，确认 Hermes 回复。
+微信发消息，确认 Hermes 回复。认证被拒绝（Token、Agent ID 不正确）会被标记为不可重试的配置错误；网络断连才会使用退避重连。长时间工具任务在独立处理任务中执行，监听循环仍会处理 Bridge `ping` 并及时返回 `pong`。
 
 ## 与 OpenClaw 并行
 
